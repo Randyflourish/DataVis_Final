@@ -1,0 +1,30 @@
+.heatmap_block {
+  opacity: 0.5;
+}
+
+.heatmap_block:hover {
+  opacity: 0.8;
+}
+
+.heatmap {
+  background-image: url("court.png");
+}
+
+.current_pos {
+  fill: gold;
+  opacity: 1;
+}
+.current_pos_line {
+  stroke-dasharray: 20, 10;
+  stroke: gray;
+  opacity: 0.5;
+  stroke-width: 2px;
+}
+
+.tooltip_block {
+  width: 150px;
+  height: 60px;
+  fill: white;
+  rx: 10px;
+  ry: 10px;
+}
