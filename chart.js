@@ -141,9 +141,9 @@ let drawLinechart1 = () => {
     showData.push(tmpobj);
   }
 
-  var margin = { top: 10, right: 10, bottom: 70, left: 40 },
+  var margin = { top: 10, right: 10, bottom: 100, left: 40 },
     width = 640 - margin.left - margin.right,
-    height = 480 - margin.top - margin.bottom;
+    height = 540 - margin.top - margin.bottom;
 
   var svg = d3
     .select("#Linechart1")
@@ -183,7 +183,7 @@ let drawLinechart1 = () => {
     .attr("stroke", "steelblue")
     .attr("stroke-width", 1.5);
 
-  // circle and rect
+  // mouse monitor
   var circle = svg.append("circle").attr("r", 0).attr("class", "current_pos");
   var cline = svg
     .append("path")
@@ -223,6 +223,7 @@ let drawLinechart1 = () => {
         .append("rect")
         .attr("x", cx)
         .attr("y", cy)
+        .attr("height", 60)
         .attr("class", "tooltip_block");
 
       var tt = tooltip
@@ -272,16 +273,16 @@ let drawLinechart2 = () => {
   });
 
   for (var i = 0; i <= 46; i++) {
-    tmpobj = { dist: i, val: shotArr[i], sucRate: 0 };
+    tmpobj = { dist: i, val: shotArr[i], goal: sucArr[i], sucRate: 0 };
     if (shotArr[i] !== 0) {
       tmpobj.sucRate = sucArr[i] / shotArr[i];
     }
     showData.push(tmpobj);
   }
 
-  var margin = { top: 10, right: 10, bottom: 30, left: 40 },
+  var margin = { top: 10, right: 10, bottom: 100, left: 40 },
     width = 640 - margin.left - margin.right,
-    height = 480 - margin.top - margin.bottom;
+    height = 540 - margin.top - margin.bottom;
 
   svg = d3
     .select("#Linechart2")
@@ -319,4 +320,76 @@ let drawLinechart2 = () => {
     .attr("fill", "none")
     .attr("stroke", "steelblue")
     .attr("stroke-width", 1.5);
+
+  // mouse monitor
+  var circle = svg.append("circle").attr("r", 0).attr("class", "current_pos");
+  var cline = svg
+    .append("path")
+    .attr("visibility", "hidden")
+    .attr("class", "current_pos_line");
+  var tooltip = svg
+    .append("g")
+    .attr("class", "tooltip")
+    .attr("visibility", "visible");
+
+  var listeningRect = svg
+    .append("rect")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("opacity", 0)
+    .on("mousemove", function (event) {
+      var [xcoord, ycoord] = d3.pointer(event, this);
+      var bisectDist = d3.bisector((d) => d.dist).center;
+      var x0 = Xaxis.invert(xcoord);
+      var nearDist = bisectDist(showData, x0);
+      var d = showData[nearDist];
+
+      var cx = Xaxis(nearDist),
+        cy = Yaxis(d.sucRate);
+      circle.attr("cx", cx).attr("cy", cy);
+      circle.transition().duration(50).attr("r", 8);
+
+      cline
+        .attr("d", `M${cx} 0 L${cx} ${height}`)
+        .attr("visibility", "visible");
+
+      tooltip.select("rect").remove();
+      tooltip.select("text").remove();
+
+      tooltip
+        .attr("visibility", "visible")
+        .append("rect")
+        .attr("x", cx)
+        .attr("y", cy)
+        .attr("height", 80)
+        .attr("class", "tooltip_block");
+
+      var tt = tooltip
+        .append("text")
+        .attr("fill", "black")
+        .attr("class", "tooltip_text");
+
+      tt.append("tspan")
+        .text(`distance: ${nearDist}ft`)
+        .attr("x", cx + 12)
+        .attr("y", cy + 16);
+      tt.append("tspan")
+        .text(`number of shot: ${d.val}`)
+        .attr("x", cx + 12)
+        .attr("y", cy + 32);
+      tt.append("tspan")
+        .text(`number of goal: ${d.goal}`)
+        .attr("x", cx + 12)
+        .attr("y", cy + 48);
+      tt.append("tspan")
+        .text(`goal rate: ${d.sucRate.toFixed(0)}%`)
+        .attr("x", cx + 12)
+        .attr("y", cy + 64);
+    })
+    .on("mouseleave", function () {
+      circle.transition().duration(50).attr("r", 0);
+      cline.attr("visibility", "hidden");
+
+      tooltip.attr("visibility", "hidden");
+    });
 };
