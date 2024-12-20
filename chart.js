@@ -1,27 +1,35 @@
 let rmv = false,
-  player = "Anthony Gill",
+  url =
+    "https://api.lbrt.tw/vis_final/player_shots/?player_id=1630166&season=2024",
+  player = "Deni Avdija",
   myData,
   showData;
 
-let init = () => {
-  d3.csv("/NBA_2024_Shots.csv").then((data) => {
-    var originData = [];
-    data
-      .filter((d) => (d.PLAYER_NAME === null ? false : true))
-      .forEach((d) => {
-        var tmpobj = {};
-        tmpobj["Name"] = d.PLAYER_NAME;
-        tmpobj["X"] = Math.min(Math.floor(parseFloat(d.LOC_X) + 25), 49);
-        tmpobj["Y"] = Math.min(Math.floor(parseFloat(d.LOC_Y)), 46);
-        tmpobj["suc"] = d.SHOT_MADE === "TRUE" ? 1 : 0;
-        tmpobj["dist"] = Math.floor(d.SHOT_DISTANCE);
-        originData.push(tmpobj);
-      });
-    myData = d3.group(originData, (d) => d.Name);
-    drawHeatmap();
-    drawLinechart1();
-    drawLinechart2();
-  });
+let update = () => {
+  d3.json(url)
+    .then((fetchData) => {
+      myData = [];
+      fetchData
+        .filter((d) => (d.PLAYER_NAME === null ? false : true))
+        .forEach((d) => {
+          var tmpobj = {};
+          tmpobj["Name"] = d.PLAYER_NAME;
+          tmpobj["X"] = Math.min(Math.floor(parseFloat(d.LOC_X) + 25), 49);
+          tmpobj["Y"] = Math.min(Math.floor(parseFloat(d.LOC_Y)), 46);
+          tmpobj["suc"] = d.SHOT_MADE === true ? 1 : 0;
+          tmpobj["dist"] = Math.floor(d.SHOT_DISTANCE);
+          tmpobj["zone"] = d.ZONE_ABB;
+          myData.push(tmpobj);
+        });
+      return 1;
+    })
+    .then((r) => {
+      console.log(myData);
+      drawHeatmap();
+      drawLinechart1();
+      drawLinechart2();
+    })
+    .catch((err) => console.log(err));
 };
 
 let drawHeatmap = () => {
@@ -30,13 +38,12 @@ let drawHeatmap = () => {
   }
   rmv = true;
 
-  var chooseData = myData.get(player),
-    showArr = Array.from({ length: 50 }, () => new Array(47).fill(0)),
+  var showArr = Array.from({ length: 50 }, () => new Array(47).fill(0)),
     sucArr = Array.from({ length: 50 }, () => new Array(47).fill(0)),
     showData = [],
     maxVal = 0;
 
-  chooseData.forEach((d) => {
+  myData.forEach((d) => {
     showArr[d.X][d.Y]++;
     if (d.suc === 1) {
       sucArr[d.X][d.Y]++;
@@ -122,13 +129,12 @@ let drawLinechart1 = () => {
   }
   rmv = true;
 
-  var chooseData = myData.get(player),
-    showArr = Array(47).fill(0),
+  var showArr = Array(47).fill(0),
     showData = [],
     maxVal = 0,
     totalShot = 0;
 
-  chooseData.forEach((d) => {
+  myData.forEach((d) => {
     showArr[d.dist]++;
     totalShot++;
   });
@@ -258,13 +264,12 @@ let drawLinechart2 = () => {
   }
   rmv = true;
 
-  var chooseData = myData.get(player),
-    shotArr = Array(47).fill(0),
+  var shotArr = Array(47).fill(0),
     sucArr = Array(47).fill(0),
     showData = [],
     totalSuc = 0;
 
-  chooseData.forEach((d) => {
+  myData.forEach((d) => {
     shotArr[d.dist]++;
     if (d.suc === 1) {
       sucArr[d.dist]++;
