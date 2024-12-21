@@ -1,13 +1,21 @@
 .heatmap_block {
-  opacity: 0.5;
+  opacity: 0.8;
 }
 
 .heatmap_block:hover {
-  opacity: 0.8;
+  opacity: 1;
 }
 
 .heatmap {
   background-image: url("court.png");
+}
+
+.title {
+  font-size: 16px;
+}
+
+.tick {
+  font-size: 14px;
 }
 
 .current_pos {

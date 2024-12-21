@@ -1,9 +1,216 @@
-let rmv = false,
-  url =
+let url =
     "https://api.lbrt.tw/vis_final/player_shots/?player_id=1630166&season=2024",
   player = "Deni Avdija",
+  colorMode = 1, // 1: by shooting successful rate, 2: by area
+  areaMode = 1, // 1: by shooting number, 2: by success number
   myData,
   showData;
+
+// Copyright 2021, Observable Inc.
+// Released under the ISC license.
+// https://observablehq.com/@d3/color-legend
+function Legend(
+  color,
+  {
+    title,
+    tickSize = 10,
+    width = 480,
+    height = 70 + tickSize,
+    marginTop = 24,
+    marginRight = 0,
+    marginBottom = 30 + tickSize,
+    marginLeft = 5,
+    ticks = width / 64,
+    tickFormat,
+    tickValues,
+  } = {}
+) {
+  function ramp(color, n = 256) {
+    const canvas = document.createElement("canvas");
+    canvas.width = n;
+    canvas.height = 1;
+    const context = canvas.getContext("2d");
+    for (let i = 0; i < n; ++i) {
+      context.fillStyle = color(i / (n - 1));
+      context.fillRect(i, 0, 1, 1);
+    }
+    return canvas;
+  }
+
+  const svg = d3
+    .create("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("viewBox", [0, 0, width, height])
+    .style("overflow", "visible")
+    .style("display", "block");
+
+  let tickAdjust = (g) =>
+    g.selectAll(".tick line").attr("y1", marginTop + marginBottom - height);
+  let x;
+
+  // Continuous
+  if (color.interpolate) {
+    const n = Math.min(color.domain().length, color.range().length);
+
+    x = color
+      .copy()
+      .rangeRound(
+        d3.quantize(d3.interpolate(marginLeft, width - marginRight), n)
+      );
+
+    svg
+      .append("image")
+      .attr("x", marginLeft)
+      .attr("y", marginTop)
+      .attr("width", width - marginLeft - marginRight)
+      .attr("height", height - marginTop - marginBottom)
+      .attr("preserveAspectRatio", "none")
+      .attr(
+        "xlink:href",
+        ramp(
+          color.copy().domain(d3.quantize(d3.interpolate(0, 1), n))
+        ).toDataURL()
+      );
+  }
+
+  // Sequential
+  else if (color.interpolator) {
+    x = Object.assign(
+      color
+        .copy()
+        .interpolator(d3.interpolateRound(marginLeft, width - marginRight)),
+      {
+        range() {
+          return [marginLeft, width - marginRight];
+        },
+      }
+    );
+
+    svg
+      .append("image")
+      .attr("x", marginLeft)
+      .attr("y", marginTop)
+      .attr("width", width - marginLeft - marginRight)
+      .attr("height", height - marginTop - marginBottom)
+      .attr("preserveAspectRatio", "none")
+      .attr("xlink:href", ramp(color.interpolator()).toDataURL());
+
+    // scaleSequentialQuantile doesn’t implement ticks or tickFormat.
+    if (!x.ticks) {
+      if (tickValues === undefined) {
+        const n = Math.round(ticks + 1);
+        tickValues = d3
+          .range(n)
+          .map((i) => d3.quantile(color.domain(), i / (n - 1)));
+      }
+      if (typeof tickFormat !== "function") {
+        tickFormat = d3.format(tickFormat === undefined ? ",f" : tickFormat);
+      }
+    }
+  }
+
+  // Threshold
+  else if (color.invertExtent) {
+    const thresholds = color.thresholds
+      ? color.thresholds() // scaleQuantize
+      : color.quantiles
+      ? color.quantiles() // scaleQuantile
+      : color.domain(); // scaleThreshold
+
+    const thresholdFormat =
+      tickFormat === undefined
+        ? (d) => d
+        : typeof tickFormat === "string"
+        ? d3.format(tickFormat)
+        : tickFormat;
+
+    x = d3
+      .scaleLinear()
+      .domain([-1, color.range().length - 1])
+      .rangeRound([marginLeft, width - marginRight]);
+
+    svg
+      .append("g")
+      .selectAll("rect")
+      .data(color.range())
+      .join("rect")
+      .attr("x", (d, i) => x(i - 1))
+      .attr("y", marginTop)
+      .attr("width", (d, i) => x(i) - x(i - 1))
+      .attr("height", height - marginTop - marginBottom)
+      .attr("fill", (d) => d);
+
+    tickValues = d3.range(thresholds.length);
+    tickFormat = (i) => thresholdFormat(thresholds[i], i);
+  }
+
+  // Ordinal
+  else {
+    x = d3
+      .scaleBand()
+      .domain(color.domain())
+      .rangeRound([marginLeft, width - marginRight]);
+
+    svg
+      .append("g")
+      .selectAll("rect")
+      .data(color.domain())
+      .join("rect")
+      .attr("x", x)
+      .attr("y", marginTop)
+      .attr("width", Math.max(0, x.bandwidth() - 1))
+      .attr("height", height - marginTop - marginBottom)
+      .attr("fill", color);
+
+    tickAdjust = () => {};
+  }
+
+  svg
+    .append("g")
+    .attr("transform", `translate(0,${height - marginBottom})`)
+    .call(
+      d3
+        .axisBottom(x)
+        .ticks(ticks, typeof tickFormat === "string" ? tickFormat : undefined)
+        .tickFormat(typeof tickFormat === "function" ? tickFormat : undefined)
+        .tickSize(tickSize)
+        .tickValues(tickValues)
+    )
+    .call(tickAdjust)
+    .call((g) => g.select(".domain").remove())
+    .call((g) =>
+      g
+        .append("text")
+        .attr("x", marginLeft)
+        .attr("y", marginTop + marginBottom - height - 6)
+        .attr("fill", "currentColor")
+        .attr("text-anchor", "start")
+        .attr("font-weight", "bold")
+        .attr("class", "title")
+        .text(title)
+    );
+
+  return svg.node();
+}
+
+function zoneConvert(zid) {
+  switch (zid) {
+    case 1:
+      return "corner";
+    case 2:
+      return "side center";
+    case 3:
+      return "center";
+    default:
+      return undefined;
+  }
+}
+
+let testBtn = () => {
+  colorMode = 3 - colorMode;
+  update();
+};
 
 let update = () => {
   d3.json(url)
@@ -18,13 +225,17 @@ let update = () => {
           tmpobj["Y"] = Math.min(Math.floor(parseFloat(d.LOC_Y)), 46);
           tmpobj["suc"] = d.SHOT_MADE === true ? 1 : 0;
           tmpobj["dist"] = Math.floor(d.SHOT_DISTANCE);
-          tmpobj["zone"] = d.ZONE_ABB;
+          tmpobj["zone"] =
+            d.ZONE_ABB === "L" || d.ZONE_ABB === "R"
+              ? 1
+              : d.ZONE_ABB === "C"
+              ? 3
+              : 2;
           myData.push(tmpobj);
         });
       return 1;
     })
     .then((r) => {
-      console.log(myData);
       drawHeatmap();
       drawLinechart1();
       drawLinechart2();
@@ -33,18 +244,21 @@ let update = () => {
 };
 
 let drawHeatmap = () => {
-  if (rmv) {
-    d3.select("#Heatmap").select("svg").remove();
-  }
-  rmv = true;
+  d3.select("#Heatmap").selectAll(".legend").remove();
+  d3.select("#Heatmap").selectAll("svg").remove();
 
   var showArr = Array.from({ length: 50 }, () => new Array(47).fill(0)),
     sucArr = Array.from({ length: 50 }, () => new Array(47).fill(0)),
+    zoneArr = Array.from({ length: 50 }, () => new Array(47).fill(0)),
     showData = [],
     maxVal = 0;
 
   myData.forEach((d) => {
     showArr[d.X][d.Y]++;
+    if (zoneArr[d.X][d.Y] !== 0 && zoneArr[d.X][d.Y] !== d.zone) {
+      console.log("zone conflict");
+    }
+    zoneArr[d.X][d.Y] = d.zone;
     if (d.suc === 1) {
       sucArr[d.X][d.Y]++;
     }
@@ -58,13 +272,21 @@ let drawHeatmap = () => {
       if (showArr[i][j] === 0) {
         continue;
       }
-      showData.push({ X: i, Y: j, val: showArr[i][j], suc: sucArr[i][j] });
+      showData.push({
+        X: i,
+        Y: j,
+        val: showArr[i][j],
+        suc: sucArr[i][j],
+        zone: zoneArr[i][j],
+      });
     }
   }
 
   var margin = { top: 0, right: 0, bottom: 0, left: 0 },
     width = 600 - margin.left - margin.right,
     height = 564 - margin.top - margin.bottom;
+
+  var leg = d3.select("#Heatmap").append("div").attr("class", "legend");
 
   var svg = d3
     .select("#Heatmap")
@@ -86,12 +308,30 @@ let drawHeatmap = () => {
     areaL = (areaU * 1) / 3,
     Length = (v) =>
       Math.sqrt(d3.scaleLinear().range([areaL, areaU]).domain([1, maxVal])(v)),
-    Color = d3.scaleSequential(
-      d3.interpolateRgbBasis(["red", "#cc00cc", "blue"])
-    );
+    sucRateColor = d3.scaleSequential(
+      d3.interpolateRgbBasis(["#e74c3c", "#2e86c1"])
+    ),
+    zoneColor = d3
+      .scaleOrdinal()
+      .domain([1, 2, 3])
+      .range(["#9b59b6", "#52be80", "#f39c12"]);
+  var sucRateLegend = Legend(sucRateColor, {
+      title: "Hit Rate",
+      tickFormat: (d) => (d * 100).toFixed(0).toString().concat("%"),
+    }),
+    zoneLegend = Legend(zoneColor, {
+      title: "Zone Name",
+      tickSize: 0,
+      tickFormat: (d) => zoneConvert(d),
+    });
 
+  // append legend
+  if (colorMode === 1) {
+    leg.node().appendChild(sucRateLegend);
+  } else if (colorMode === 2) {
+    leg.node().appendChild(zoneLegend);
+  }
   // draw area
-
   svg
     .selectAll()
     .data(showData)
@@ -113,7 +353,11 @@ let drawHeatmap = () => {
     .attr("ry", 2)
     .attr("class", "heatmap_block")
     .style("fill", function (d) {
-      return Color(d.suc / d.val);
+      if (colorMode === 1) {
+        return sucRateColor(d.suc / d.val);
+      } else if (colorMode === 2) {
+        return zoneColor(d.zone);
+      }
     })
     .append("title")
     .text(function (d) {
@@ -124,10 +368,7 @@ let drawHeatmap = () => {
 };
 
 let drawLinechart1 = () => {
-  if (rmv) {
-    d3.select("#Linechart1").select("svg").remove();
-  }
-  rmv = true;
+  d3.select("#Linechart1").select("svg").remove();
 
   var showArr = Array(47).fill(0),
     showData = [],
@@ -259,10 +500,7 @@ let drawLinechart1 = () => {
 };
 
 let drawLinechart2 = () => {
-  if (rmv) {
-    d3.select("#Linechart2").select("svg").remove();
-  }
-  rmv = true;
+  d3.select("#Linechart2").select("svg").remove();
 
   var shotArr = Array(47).fill(0),
     sucArr = Array(47).fill(0),
